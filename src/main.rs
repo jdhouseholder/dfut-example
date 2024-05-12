@@ -27,7 +27,7 @@ impl Worker {
         d_await!(b)
     }
 
-    // Sort.
+    // Sort. Inspired by: https://docs.ray.io/en/latest/ray-core/patterns/nested-tasks.html.
     pub async fn partition(&self, mut v: Vec<u64>) -> (Vec<u64>, u64, Vec<u64>) {
         let p = v.pop().unwrap();
         let mut l = Vec::new();
@@ -58,7 +58,8 @@ impl Worker {
         out
     }
 
-    // Supervisor.
+    // Supervisor. Inspired by:
+    // https://docs.ray.io/en/latest/ray-core/patterns/tree-of-actors.html.
     pub async fn supervised_train(&self, hyperparam: f64, data: Vec<f64>) -> Vec<f64> {
         let mut v = Vec::new();
         for d in data {
