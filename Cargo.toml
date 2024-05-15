@@ -6,7 +6,10 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 rand = "0.8.5"
+serde = { version = "1.0.197", features = ["derive"] }
+metrics-exporter-prometheus = "0.14.0"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
 
 dfut = { path = "../dfut/dfut" }
 dfut-macro = { path = "../dfut/dfut-macro" }
-serde = { version = "1.0.197", features = ["derive"] }

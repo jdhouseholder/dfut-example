@@ -81,6 +81,11 @@ impl Worker {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+    let prometheus_handle = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .install_recorder()
+        .unwrap();
+
     let global_scheduler_address = "http://127.0.0.1:8120";
 
     tokio::spawn(GlobalScheduler::serve(global_scheduler_address));
@@ -144,4 +149,6 @@ async fn main() {
         let model2 = client.d_await(s2).await.unwrap();
         assert_eq!(model2, vec![2., 4., 6.]);
     }
+
+    println!("{}", prometheus_handle.render());
 }
