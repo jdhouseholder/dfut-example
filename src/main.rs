@@ -121,19 +121,18 @@ async fn main() {
             let mut v: Vec<u64> = (0..size).collect();
             v.shuffle(&mut rand::thread_rng());
 
+            let mut want = v.clone();
             let start = Instant::now();
-            v.sort();
+            want.sort();
             let elapsed = start.elapsed();
-            let _sorted = v;
             println!("local: size={size} took={elapsed:?}");
 
-            let mut v: Vec<u64> = (0..size).collect();
-            v.shuffle(&mut rand::thread_rng());
-
             let start = Instant::now();
-            let _sorted = client.d_await(client.quick_sort(v).await).await.unwrap();
+            let got = client.d_await(client.quick_sort(v).await).await.unwrap();
             let elapsed = start.elapsed();
             println!("distributed: size={size} took={elapsed:?}");
+
+            assert_eq!(got, want);
         }
     }
 
