@@ -88,7 +88,7 @@ async fn main() {
 
     let global_scheduler_address = "http://127.0.0.1:8120";
 
-    tokio::spawn(GlobalScheduler::serve(global_scheduler_address));
+    tokio::spawn(GlobalScheduler::serve(global_scheduler_address, vec![]));
 
     (1..=3).for_each(|i| {
         tokio::spawn(Worker::serve(WorkerServerConfig {
