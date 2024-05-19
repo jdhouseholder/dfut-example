@@ -149,5 +149,7 @@ async fn main() {
         assert_eq!(model2, vec![2., 4., 6.]);
     }
 
+    println!();
+    println!("metrics");
     println!("{}", prometheus_handle.render());
 }
