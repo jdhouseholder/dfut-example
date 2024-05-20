@@ -281,6 +281,7 @@ dependencies = [
  "raft",
  "rand",
  "serde",
+ "size-ser",
  "tokio",
  "tonic",
  "tonic-build",
@@ -1047,6 +1048,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1500,6 +1507,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9e9e0b4211b72e7b8b6e85c807d36c212bdb33ea8587f7569562a84df5465b1"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "size-ser"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab6f858e87409f66d4a050e994cb21dc367148febc67361e917701ca3235cca6"
+dependencies = [
+ "paste",
+ "serde",
 ]
 
 [[package]]
