@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use dfut::{d_await, into_dfut, DFut, GlobalScheduler, Runtime, WorkerServerConfig};
+use dfut::{d_await, into_dfut, DFut, DResult, GlobalScheduler, Runtime, WorkerServerConfig};
 use rand::seq::SliceRandom;
 
 #[derive(Debug, Clone)]
@@ -11,24 +11,24 @@ pub struct Worker {
 #[into_dfut]
 impl Worker {
     // Foo Bar.
-    pub async fn foo(&self, a: Vec<String>) -> String {
-        a.join(" ").to_string()
+    pub async fn foo(&self, a: Vec<String>) -> DResult<String> {
+        Ok(a.join(" ").to_string())
     }
 
-    pub async fn bar(&self, a: usize, b: DFut<String>) -> String {
+    pub async fn bar(&self, a: usize, b: DFut<String>) -> DResult<String> {
         let b = d_await!(b);
-        (b + " ").repeat(a).trim().to_string()
+        Ok((b + " ").repeat(a).trim().to_string())
     }
 
-    pub async fn foo_bar(&self, a: usize) -> String {
+    pub async fn foo_bar(&self, a: usize) -> DResult<String> {
         let v = vec!["hello".to_string(), "world".to_string()];
         let sf = self.foo(v).await;
         let b: DFut<String> = self.bar(a, sf).await;
-        d_await!(b)
+        Ok(d_await!(b))
     }
 
     // Sort. Inspired by: https://docs.ray.io/en/latest/ray-core/patterns/nested-tasks.html.
-    pub async fn partition(&self, mut v: Vec<u64>) -> (Vec<u64>, u64, Vec<u64>) {
+    pub async fn partition(&self, mut v: Vec<u64>) -> DResult<(Vec<u64>, u64, Vec<u64>)> {
         let p = v.pop().unwrap();
         let mut l = Vec::new();
         let mut g = Vec::new();
@@ -40,13 +40,13 @@ impl Worker {
             }
         }
 
-        (l, p, g)
+        Ok((l, p, g))
     }
 
-    pub async fn quick_sort(&self, mut v: Vec<u64>) -> Vec<u64> {
+    pub async fn quick_sort(&self, mut v: Vec<u64>) -> DResult<Vec<u64>> {
         if v.len() < 200_000 {
             v.sort();
-            return v;
+            return Ok(v);
         }
         let (l, p, g) = d_await!(self.partition(v).await);
         let l = d_await!(self.quick_sort(l).await);
@@ -55,12 +55,12 @@ impl Worker {
         out.extend(l);
         out.push(p);
         out.extend(g);
-        out
+        Ok(out)
     }
 
     // Supervisor. Inspired by:
     // https://docs.ray.io/en/latest/ray-core/patterns/tree-of-actors.html.
-    pub async fn supervised_train(&self, hyperparam: f64, data: Vec<f64>) -> Vec<f64> {
+    pub async fn supervised_train(&self, hyperparam: f64, data: Vec<f64>) -> DResult<Vec<f64>> {
         let mut v = Vec::new();
         for d in data {
             v.push(self.train(hyperparam, d).await);
@@ -71,11 +71,11 @@ impl Worker {
             o.push(d_await!(f));
         }
 
-        o
+        Ok(o)
     }
 
-    pub async fn train(&self, hyperparam: f64, data: f64) -> f64 {
-        hyperparam * data
+    pub async fn train(&self, hyperparam: f64, data: f64) -> DResult<f64> {
+        Ok(hyperparam * data)
     }
 }
 
@@ -90,7 +90,7 @@ async fn main() {
 
     tokio::spawn(GlobalScheduler::serve(global_scheduler_address, vec![]));
 
-    (1..=3).for_each(|i| {
+    (1..=9).for_each(|i| {
         tokio::spawn(Worker::serve(WorkerServerConfig {
             local_server_address: format!("http://127.0.0.1:812{i}"),
             global_scheduler_address: global_scheduler_address.to_string(),
