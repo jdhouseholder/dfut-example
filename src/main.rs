@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dfut::{d_await, into_dfut, DFut, DResult, GlobalScheduler, Runtime, WorkerServerConfig};
 use rand::seq::SliceRandom;
@@ -88,7 +88,11 @@ async fn main() {
 
     let global_scheduler_address = "http://127.0.0.1:8120";
 
-    tokio::spawn(GlobalScheduler::serve(global_scheduler_address, vec![]));
+    tokio::spawn(GlobalScheduler::serve(
+        global_scheduler_address,
+        vec![],
+        Duration::from_secs(5),
+    ));
 
     (1..=9).for_each(|i| {
         tokio::spawn(Worker::serve(WorkerServerConfig {
