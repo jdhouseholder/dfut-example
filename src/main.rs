@@ -1,7 +1,10 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use dfut::{d_await, into_dfut, DFut, DResult, GlobalScheduler, Runtime, WorkerServerConfig};
 use rand::seq::SliceRandom;
+
+static SUCCEED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub struct Worker {
@@ -77,6 +80,22 @@ impl Worker {
     pub async fn train(&self, hyperparam: f64, data: f64) -> DResult<f64> {
         Ok(hyperparam * data)
     }
+
+    pub async fn reconstruction(&self, v: u64) -> DResult<u64> {
+        // Since we don't retry from the driver and we don't retry on the
+        // current worker, we have the parent retry. We need one level of
+        // indirection.
+        let v = d_await!(self.retried_f(v).await);
+        Ok(v)
+    }
+
+    pub async fn retried_f(&self, v: u64) -> DResult<u64> {
+        let succ = SUCCEED.fetch_or(true, Ordering::SeqCst);
+        if !succ {
+            return Err(dfut::Error::System);
+        }
+        Ok(2 * v)
+    }
 }
 
 #[tokio::main]
@@ -102,7 +121,8 @@ async fn main() {
         }));
     });
 
-    let client = WorkerClient::new(&global_scheduler_address).await;
+    let root_client = WorkerRootClient::new(&global_scheduler_address).await;
+    let client = root_client.new_client();
 
     // Foo Bar.
     {
@@ -151,6 +171,14 @@ async fn main() {
 
         let model2 = client.d_await(s2).await.unwrap();
         assert_eq!(model2, vec![2., 4., 6.]);
+    }
+
+    // Reconstruction.
+    {
+        let x = 42;
+        let f = client.reconstruction(x).await;
+        let y = client.d_await(f).await.unwrap();
+        assert_eq!(y, 2 * x);
     }
 
     println!();
