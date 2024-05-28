@@ -141,7 +141,10 @@ async fn main() {
 
     // Sort.
     {
-        for size in [200_000, 400_000, 800_000] {
+        for size in [
+            200_000, 400_000, 800_000, 1_600_000, 3_200_000, 6_400_000, 12_800_000,
+        ] {
+            println!("shuffle with size={size}");
             let mut v: Vec<u64> = (0..size).collect();
             v.shuffle(&mut rand::thread_rng());
 
@@ -149,12 +152,13 @@ async fn main() {
             let start = Instant::now();
             want.sort();
             let elapsed = start.elapsed();
-            println!("local: size={size} took={elapsed:?}");
+            println!("local: took={elapsed:?}");
 
             let start = Instant::now();
-            let got = client.d_await(client.quick_sort(v).await).await.unwrap();
+            let f = client.quick_sort(v.clone()).await;
+            let got = client.d_await(f).await.unwrap();
             let elapsed = start.elapsed();
-            println!("distributed: size={size} took={elapsed:?}");
+            println!("distributed: took={elapsed:?}");
 
             assert_eq!(got, want);
         }
