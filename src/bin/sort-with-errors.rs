@@ -4,7 +4,7 @@ use dfut::{d_await, into_dfut, DFut, DResult, GlobalScheduler, Runtime, WorkerSe
 use rand::seq::SliceRandom;
 
 const BASE: u64 = 200_000;
-const N: u32 = 10;
+const N: u32 = 5;
 
 const P_FAIL: &[f64] = &[0., 0.01, 0.1];
 
@@ -69,9 +69,9 @@ impl Worker {
             v.sort();
             return Ok(v);
         }
-        let (l, p, g) = d_await!(self.partition(v).await);
-        let l = d_await!(self.quick_sort(p_fail, l).await);
-        let g = d_await!(self.quick_sort(p_fail, g).await);
+        let (l, p, g) = d_await!(self.partition(v).await?);
+        let l = d_await!(self.quick_sort(p_fail, l).await?);
+        let g = d_await!(self.quick_sort(p_fail, g).await?);
         let mut out = Vec::new();
         out.extend(l);
         out.push(p);
@@ -140,7 +140,7 @@ async fn main() {
             for p_fail in P_FAIL {
                 let v_clone = v.clone();
                 let start = Instant::now();
-                let f = client.quick_sort(*p_fail, v_clone).await;
+                let f = client.quick_sort(*p_fail, v_clone).await.unwrap();
                 let got = client.d_await(f).await.unwrap();
                 let elapsed = start.elapsed();
                 print!(", {:?}", elapsed.as_secs_f64());
@@ -150,6 +150,8 @@ async fn main() {
             println!();
         }
     }
+
+    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 
     if !std::env::var("SHOW_METRICS").ok().is_some() {
         println!();

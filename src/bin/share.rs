@@ -28,7 +28,7 @@ impl Worker {
 
         let mut v = Vec::new();
         for (hyperparam, data) in hyperparams.into_iter().zip(data_dfuts) {
-            v.push(self.train_epoch(hyperparam, data).await);
+            v.push(self.train_epoch(hyperparam, data).await?);
         }
 
         let mut o = Vec::new();
@@ -44,8 +44,7 @@ impl Worker {
     pub async fn train_epoch(&self, hyperparam: f64, data: DFut<Vec<f64>>) -> DResult<Vec<f64>> {
         let mut v = Vec::new();
         for data in d_await!(data) {
-            let fut = self.train(hyperparam, data).await;
-            v.push(fut);
+            v.push(self.train(hyperparam, data).await?);
         }
 
         let mut o = Vec::new();
@@ -89,7 +88,7 @@ async fn main() {
 
     let hyperparams = vec![1., 2., 3., 4.];
     let data = vec![1., 2., 3.];
-    let fut = client.supervised_train(hyperparams, data).await;
+    let fut = client.supervised_train(hyperparams, data).await.unwrap();
     let model1 = client.d_await(fut).await.unwrap();
     assert_eq!(
         model1,
@@ -100,6 +99,8 @@ async fn main() {
             vec![4., 8., 12.]
         ]
     );
+
+    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 
     println!();
     println!("metrics");

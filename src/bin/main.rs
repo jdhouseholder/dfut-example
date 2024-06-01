@@ -25,8 +25,8 @@ impl Worker {
 
     pub async fn foo_bar(&self, a: usize) -> DResult<String> {
         let v = vec!["hello".to_string(), "world".to_string()];
-        let sf = self.foo(v).await;
-        let b: DFut<String> = self.bar(a, sf).await;
+        let sf = self.foo(v).await?;
+        let b: DFut<String> = self.bar(a, sf).await?;
         Ok(d_await!(b))
     }
 
@@ -51,9 +51,9 @@ impl Worker {
             v.sort();
             return Ok(v);
         }
-        let (l, p, g) = d_await!(self.partition(v).await);
-        let l = d_await!(self.quick_sort(l).await);
-        let g = d_await!(self.quick_sort(g).await);
+        let (l, p, g) = d_await!(self.partition(v).await?);
+        let l = d_await!(self.quick_sort(l).await?);
+        let g = d_await!(self.quick_sort(g).await?);
         let mut out = Vec::new();
         out.extend(l);
         out.push(p);
@@ -66,7 +66,7 @@ impl Worker {
     pub async fn supervised_train(&self, hyperparam: f64, data: Vec<f64>) -> DResult<Vec<f64>> {
         let mut v = Vec::new();
         for d in data {
-            v.push(self.train(hyperparam, d).await);
+            v.push(self.train(hyperparam, d).await?);
         }
 
         let mut o = Vec::new();
@@ -85,7 +85,7 @@ impl Worker {
         // Since we don't retry from the driver and we don't retry on the
         // current worker, we have the parent retry. We need one level of
         // indirection.
-        let v = d_await!(self.retried_f(v).await);
+        let v = d_await!(self.retried_f(v).await?);
         Ok(v)
     }
 
@@ -129,7 +129,7 @@ async fn main() {
         let mut d_futs = Vec::new();
 
         for _ in 0..10 {
-            let d_fut = client.foo_bar(2).await;
+            let d_fut = client.foo_bar(2).await.unwrap();
             d_futs.push(d_fut);
         }
 
@@ -155,7 +155,7 @@ async fn main() {
             println!("local: took={elapsed:?}");
 
             let start = Instant::now();
-            let f = client.quick_sort(v.clone()).await;
+            let f = client.quick_sort(v.clone()).await.unwrap();
             let got = client.d_await(f).await.unwrap();
             let elapsed = start.elapsed();
             println!("distributed: took={elapsed:?}");
@@ -167,8 +167,8 @@ async fn main() {
     // Supervisor.
     {
         let data = vec![1., 2., 3.];
-        let s1 = client.supervised_train(1., data.clone()).await;
-        let s2 = client.supervised_train(2., data.clone()).await;
+        let s1 = client.supervised_train(1., data.clone()).await.unwrap();
+        let s2 = client.supervised_train(2., data.clone()).await.unwrap();
 
         let model1 = client.d_await(s1).await.unwrap();
         assert_eq!(model1, vec![1., 2., 3.]);
@@ -180,7 +180,7 @@ async fn main() {
     // Reconstruction.
     {
         let x = 42;
-        let f = client.reconstruction(x).await;
+        let f = client.reconstruction(x).await.unwrap();
         let y = client.d_await(f).await.unwrap();
         assert_eq!(y, 2 * x);
     }
