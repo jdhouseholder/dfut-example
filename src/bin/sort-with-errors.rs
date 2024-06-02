@@ -103,7 +103,7 @@ async fn main() {
         }));
     });
 
-    let root_client = WorkerRootClient::new(&global_scheduler_address).await;
+    let root_client = WorkerRootClient::new(&global_scheduler_address, "unique-id").await;
     let client = root_client.new_client();
 
     // Sort.
