@@ -6,6 +6,21 @@ use rand::seq::SliceRandom;
 
 static SUCCEED: AtomicBool = AtomicBool::new(false);
 
+pub fn partition(mut v: Vec<u64>) -> (Vec<u64>, u64, Vec<u64>) {
+    let p = v.pop().unwrap();
+    let mut l = Vec::new();
+    let mut g = Vec::new();
+    for e in v {
+        if e > p {
+            g.push(e);
+        } else {
+            l.push(e);
+        }
+    }
+
+    (l, p, g)
+}
+
 #[derive(Debug, Clone)]
 pub struct Worker {
     runtime: Runtime,
@@ -31,29 +46,16 @@ impl Worker {
     }
 
     // Sort. Inspired by: https://docs.ray.io/en/latest/ray-core/patterns/nested-tasks.html.
-    pub async fn partition(&self, mut v: Vec<u64>) -> DResult<(Vec<u64>, u64, Vec<u64>)> {
-        let p = v.pop().unwrap();
-        let mut l = Vec::new();
-        let mut g = Vec::new();
-        for e in v {
-            if e > p {
-                g.push(e);
-            } else {
-                l.push(e);
-            }
-        }
-
-        Ok((l, p, g))
-    }
-
     pub async fn quick_sort(&self, mut v: Vec<u64>) -> DResult<Vec<u64>> {
         if v.len() < 200_000 {
             v.sort();
             return Ok(v);
         }
-        let (l, p, g) = d_await!(self.partition(v).await?);
-        let l = d_await!(self.quick_sort(l).await?);
-        let g = d_await!(self.quick_sort(g).await?);
+        let (l, p, g) = partition(v);
+        let l_fut = self.quick_sort(l).await?;
+        let g_fut = self.quick_sort(g).await?;
+        let l = d_await!(l_fut);
+        let g = d_await!(g_fut);
         let mut out = Vec::new();
         out.extend(l);
         out.push(p);

@@ -8,7 +8,7 @@ const N: u32 = 5;
 
 const P_FAIL: &[f64] = &[0., 0.01, 0.1];
 
-pub fn local_partition(mut v: Vec<u64>) -> (Vec<u64>, u64, Vec<u64>) {
+pub fn partition(mut v: Vec<u64>) -> (Vec<u64>, u64, Vec<u64>) {
     let p = v.pop().unwrap();
     let mut l = Vec::new();
     let mut g = Vec::new();
@@ -28,7 +28,7 @@ pub fn local_quick_sort(mut v: Vec<u64>) -> Vec<u64> {
         v.sort();
         return v;
     }
-    let (l, p, g) = local_partition(v);
+    let (l, p, g) = partition(v);
     let l = local_quick_sort(l);
     let g = local_quick_sort(g);
     let mut out = Vec::new();
@@ -45,22 +45,6 @@ pub struct Worker {
 
 #[into_dfut]
 impl Worker {
-    // Sort. Inspired by: https://docs.ray.io/en/latest/ray-core/patterns/nested-tasks.html.
-    pub async fn partition(&self, mut v: Vec<u64>) -> DResult<(Vec<u64>, u64, Vec<u64>)> {
-        let p = v.pop().unwrap();
-        let mut l = Vec::new();
-        let mut g = Vec::new();
-        for e in v {
-            if e > p {
-                g.push(e);
-            } else {
-                l.push(e);
-            }
-        }
-
-        Ok((l, p, g))
-    }
-
     pub async fn quick_sort(&self, p_fail: f64, mut v: Vec<u64>) -> DResult<Vec<u64>> {
         if rand::random::<f64>() < p_fail {
             return Err(dfut::Error::System);
@@ -69,9 +53,11 @@ impl Worker {
             v.sort();
             return Ok(v);
         }
-        let (l, p, g) = d_await!(self.partition(v).await?);
-        let l = d_await!(self.quick_sort(p_fail, l).await?);
-        let g = d_await!(self.quick_sort(p_fail, g).await?);
+        let (l, p, g) = partition(v);
+        let l_fut = self.quick_sort(p_fail, l).await?;
+        let g_fut = self.quick_sort(p_fail, g).await?;
+        let l = d_await!(l_fut);
+        let g = d_await!(g_fut);
         let mut out = Vec::new();
         out.extend(l);
         out.push(p);
