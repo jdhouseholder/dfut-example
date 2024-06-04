@@ -82,11 +82,21 @@ async fn main() {
     ));
 
     (1..=9).for_each(|i| {
-        tokio::spawn(Worker::serve(WorkerServerConfig {
-            local_server_address: format!("http://127.0.0.1:812{i}"),
-            global_scheduler_address: global_scheduler_address.to_string(),
-            ..Default::default()
-        }));
+        tokio::spawn(async move {
+            let root_runtime_handle = Worker::serve(WorkerServerConfig {
+                local_server_address: format!("http://127.0.0.1:812{i}"),
+                global_scheduler_address: global_scheduler_address.to_string(),
+                ..Default::default()
+            })
+            .await;
+
+            if std::env::var("DEBUG").ok().is_some() {
+                loop {
+                    root_runtime_handle.emit_debug_output();
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                }
+            }
+        });
     });
 
     let root_client = WorkerRootClient::new(&global_scheduler_address, "unique-id").await;
@@ -139,7 +149,7 @@ async fn main() {
 
     tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 
-    if !std::env::var("SHOW_METRICS").ok().is_some() {
+    if std::env::var("SHOW_METRICS").ok().is_some() {
         println!();
         println!("metrics");
         println!("{}", prometheus_handle.render());
