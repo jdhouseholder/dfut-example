@@ -1,7 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use dfut::{d_await, into_dfut, DFut, DResult, GlobalScheduler, Runtime, WorkerServerConfig};
+use dfut::{
+    d_await, into_dfut, DFut, DResult, GlobalScheduler, GlobalSchedulerCfg, Runtime,
+    WorkerServerConfig,
+};
 use rand::seq::SliceRandom;
 
 static SUCCEED: AtomicBool = AtomicBool::new(false);
@@ -109,11 +112,12 @@ async fn main() {
 
     let global_scheduler_address = "http://127.0.0.1:8120";
 
-    tokio::spawn(GlobalScheduler::serve(
-        global_scheduler_address,
-        vec![],
-        Duration::from_secs(5),
-    ));
+    tokio::spawn(GlobalScheduler::serve_forever(GlobalSchedulerCfg {
+        address: global_scheduler_address.to_string(),
+        ..Default::default()
+    }));
+
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     (1..=9).for_each(|i| {
         tokio::spawn(Worker::serve(WorkerServerConfig {

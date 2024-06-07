@@ -1,8 +1,6 @@
-use std::time::Duration;
-
 use dfut::{
-    d_await, d_box, d_cancel, into_dfut, DFut, DResult, GlobalScheduler, Runtime,
-    WorkerServerConfig,
+    d_await, d_box, d_cancel, into_dfut, DFut, DResult, GlobalScheduler, GlobalSchedulerCfg,
+    Runtime, WorkerServerConfig,
 };
 
 #[derive(Debug, Clone)]
@@ -69,11 +67,10 @@ async fn main() {
 
     let global_scheduler_address = "http://127.0.0.1:8120";
 
-    tokio::spawn(GlobalScheduler::serve(
-        global_scheduler_address,
-        vec![],
-        Duration::from_secs(5),
-    ));
+    tokio::spawn(GlobalScheduler::serve_forever(GlobalSchedulerCfg {
+        address: global_scheduler_address.to_string(),
+        ..Default::default()
+    }));
 
     (1..=9).for_each(|i| {
         tokio::spawn(Worker::serve(WorkerServerConfig {
