@@ -150,7 +150,7 @@ async fn main() {
         for size in [
             200_000, 400_000, 800_000, 1_600_000, 3_200_000, 6_400_000, 12_800_000,
         ] {
-            println!("shuffle with size={size}");
+            println!("sort with size={size}");
             let mut v: Vec<u64> = (0..size).collect();
             v.shuffle(&mut rand::thread_rng());
 
