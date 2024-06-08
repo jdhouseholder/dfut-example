@@ -6,6 +6,7 @@ use dfut::{
     WorkerServerConfig,
 };
 use rand::seq::SliceRandom;
+use rayon::prelude::*;
 use tokio_util::sync::CancellationToken;
 
 use dfut_example::now;
@@ -90,8 +91,6 @@ async fn main() {
         .install_recorder()
         .unwrap();
 
-    let args = Args::parse();
-
     let global_scheduler_address = "http://127.0.0.1:8220";
 
     tokio::spawn(GlobalScheduler::serve_forever(GlobalSchedulerCfg {
@@ -113,50 +112,74 @@ async fn main() {
 
     let root_client = WorkerRootClient::new(&global_scheduler_address, "unique-id").await;
 
+    let n_cpus = num_cpus::get();
+
     let mut data = Vec::new();
     for i in 1..N {
         let size = BASE * 2u64.pow(i);
 
         let exp_start = Instant::now();
-        loop {
-            let mut v: Vec<u64> = (0..size).collect();
-            v.shuffle(&mut rand::thread_rng());
+        let datas: Vec<Vec<_>> = (0..n_cpus)
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|_| {
+                let mut data = Vec::new();
+                loop {
+                    let mut v: Vec<u64> = (0..size).collect();
+                    v.shuffle(&mut rand::thread_rng());
 
-            let mut v_clone = v.clone();
-            let start = Instant::now();
-            v_clone.sort();
-            let elapsed = start.elapsed();
-            assert_eq!(v_clone, (0..size).collect::<Vec<_>>());
-            data.push((
-                now().as_millis().to_string(),
-                size.to_string(),
-                "std".to_string(),
-                elapsed.as_secs_f64().to_string(),
-            ));
-            if exp_start.elapsed() >= Duration::from_secs(30) {
-                break;
-            }
+                    let mut v_clone = v.clone();
+                    let start = Instant::now();
+                    v_clone.sort();
+                    let elapsed = start.elapsed();
+                    assert_eq!(v_clone, (0..size).collect::<Vec<_>>());
+                    data.push((
+                        now().as_millis().to_string(),
+                        size.to_string(),
+                        "std".to_string(),
+                        elapsed.as_secs_f64().to_string(),
+                    ));
+                    if exp_start.elapsed() >= Duration::from_secs(30) {
+                        break;
+                    }
+                }
+                data
+            })
+            .collect();
+        for d in datas {
+            data.extend(d);
         }
 
         let exp_start = Instant::now();
-        for _ in 0..args.n {
-            let mut v: Vec<u64> = (0..size).collect();
-            v.shuffle(&mut rand::thread_rng());
+        let datas: Vec<Vec<_>> = (0..n_cpus)
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|_| {
+                let mut data = Vec::new();
+                loop {
+                    let mut v: Vec<u64> = (0..size).collect();
+                    v.shuffle(&mut rand::thread_rng());
 
-            let v_clone = v.clone();
-            let start = Instant::now();
-            let got = local_quick_sort(v_clone);
-            let elapsed = start.elapsed();
-            assert_eq!(got, (0..size).collect::<Vec<_>>());
-            data.push((
-                now().as_millis().to_string(),
-                size.to_string(),
-                "local".to_string(),
-                elapsed.as_secs_f64().to_string(),
-            ));
-            if exp_start.elapsed() >= Duration::from_secs(30) {
-                break;
-            }
+                    let v_clone = v.clone();
+                    let start = Instant::now();
+                    let got = local_quick_sort(v_clone);
+                    let elapsed = start.elapsed();
+                    assert_eq!(got, (0..size).collect::<Vec<_>>());
+                    data.push((
+                        now().as_millis().to_string(),
+                        size.to_string(),
+                        "local".to_string(),
+                        elapsed.as_secs_f64().to_string(),
+                    ));
+                    if exp_start.elapsed() >= Duration::from_secs(30) {
+                        break;
+                    }
+                }
+                data
+            })
+            .collect();
+        for d in datas {
+            data.extend(d);
         }
 
         for p_fail in P_FAIL {
