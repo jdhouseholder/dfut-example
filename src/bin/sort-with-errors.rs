@@ -1,15 +1,25 @@
 use std::time::{Duration, Instant};
 
+use clap::Parser;
 use dfut::{
     d_await, into_dfut, DFut, DResult, GlobalScheduler, GlobalSchedulerCfg, Runtime,
     WorkerServerConfig,
 };
 use rand::seq::SliceRandom;
+use tokio_util::sync::CancellationToken;
+
+use dfut_example::now;
 
 const BASE: u64 = 200_000;
 const N: u32 = 6;
 
 const P_FAIL: &[f64] = &[0., 0.01, 0.1];
+
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(short, long, default_value_t = 100)]
+    n: u32,
+}
 
 pub fn partition(mut v: Vec<u64>) -> (Vec<u64>, u64, Vec<u64>) {
     let p = v.pop().unwrap();
@@ -80,6 +90,8 @@ async fn main() {
         .install_recorder()
         .unwrap();
 
+    let args = Args::parse();
+
     let global_scheduler_address = "http://127.0.0.1:8220";
 
     tokio::spawn(GlobalScheduler::serve_forever(GlobalSchedulerCfg {
@@ -90,40 +102,23 @@ async fn main() {
 
     let base_port_number = 8120;
     (0..10).for_each(|i| {
-        tokio::spawn(async move {
-            let root_runtime_handle = Worker::serve(WorkerServerConfig {
-                local_server_address: format!("http://127.0.0.1:{}", base_port_number + i),
-                global_scheduler_address: global_scheduler_address.to_string(),
-                ..Default::default()
-            })
-            .await;
-
-            if std::env::var("DEBUG").ok().is_some() {
-                loop {
-                    root_runtime_handle.emit_debug_output();
-                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                }
-            }
-        });
+        tokio::spawn(Worker::serve_forever(WorkerServerConfig {
+            local_server_address: format!("http://127.0.0.1:{}", base_port_number + i),
+            global_scheduler_address: global_scheduler_address.to_string(),
+            ..Default::default()
+        }));
     });
 
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
     let root_client = WorkerRootClient::new(&global_scheduler_address, "unique-id").await;
-    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(48));
-
-    let n = 100;
 
     let mut data = Vec::new();
-    let mut js = tokio::task::JoinSet::new();
     for i in 1..N {
         let size = BASE * 2u64.pow(i);
 
-        let mut record = Vec::new();
-        record.push(size.to_string());
-
-        let mut std_dur = Vec::new();
-        for _ in 0..n {
+        let exp_start = Instant::now();
+        loop {
             let mut v: Vec<u64> = (0..size).collect();
             v.shuffle(&mut rand::thread_rng());
 
@@ -132,11 +127,19 @@ async fn main() {
             v_clone.sort();
             let elapsed = start.elapsed();
             assert_eq!(v_clone, (0..size).collect::<Vec<_>>());
-            std_dur.push(elapsed.as_secs_f64().to_string());
+            data.push((
+                now().as_millis().to_string(),
+                size.to_string(),
+                "std".to_string(),
+                elapsed.as_secs_f64().to_string(),
+            ));
+            if exp_start.elapsed() >= Duration::from_secs(30) {
+                break;
+            }
         }
 
-        let mut local_dur = Vec::new();
-        for _ in 0..n {
+        let exp_start = Instant::now();
+        for _ in 0..args.n {
             let mut v: Vec<u64> = (0..size).collect();
             v.shuffle(&mut rand::thread_rng());
 
@@ -145,65 +148,68 @@ async fn main() {
             let got = local_quick_sort(v_clone);
             let elapsed = start.elapsed();
             assert_eq!(got, (0..size).collect::<Vec<_>>());
-            local_dur.push(elapsed.as_secs_f64().to_string());
+            data.push((
+                now().as_millis().to_string(),
+                size.to_string(),
+                "local".to_string(),
+                elapsed.as_secs_f64().to_string(),
+            ));
+            if exp_start.elapsed() >= Duration::from_secs(30) {
+                break;
+            }
         }
 
-        let mut p_durs = Vec::new();
         for p_fail in P_FAIL {
-            let mut dur = Vec::new();
-            for _ in 0..n {
+            let mut js = tokio::task::JoinSet::new();
+            let ct = CancellationToken::new();
+
+            for _ in 0..10 {
                 js.spawn({
+                    let ct = ct.clone();
+                    let exp_id = format!("p_fail={p_fail}");
                     let client = root_client.new_client();
-                    let sem = sem.clone();
 
                     async move {
-                        let _g = sem.acquire().await.unwrap();
+                        let mut data = Vec::new();
+                        loop {
+                            let mut v: Vec<u64> = (0..size).collect();
+                            v.shuffle(&mut rand::thread_rng());
 
-                        let mut v: Vec<u64> = (0..size).collect();
-                        v.shuffle(&mut rand::thread_rng());
-
-                        let v_clone = v.clone();
-                        let start = Instant::now();
-                        let f = client.quick_sort(*p_fail, v_clone).await.unwrap();
-                        let got = client.d_await(f).await.unwrap();
-                        let elapsed = start.elapsed();
-                        assert_eq!(got, (0..size).collect::<Vec<_>>());
-                        elapsed.as_secs_f64().to_string()
+                            let v_clone = v.clone();
+                            let start = Instant::now();
+                            let f = client.quick_sort(*p_fail, v_clone).await.unwrap();
+                            let got = client.d_await(f).await.unwrap();
+                            let elapsed = start.elapsed();
+                            assert_eq!(got, (0..size).collect::<Vec<_>>());
+                            data.push((
+                                now().as_millis().to_string(),
+                                size.to_string(),
+                                exp_id.clone(),
+                                elapsed.as_secs_f64().to_string(),
+                            ));
+                            if ct.is_cancelled() {
+                                break;
+                            }
+                        }
+                        data
                     }
                 });
             }
 
-            while let Some(r) = js.join_next().await {
-                dur.push(r.unwrap());
-            }
-            p_durs.push(dur);
-        }
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            ct.cancel();
 
-        for i in 0..n {
-            let mut record = Vec::new();
-            record.push(format!("{size}"));
-            record.push(std_dur[i].clone());
-            record.push(local_dur[i].clone());
-            for j in 0..P_FAIL.len() {
-                record.push(p_durs[j][i].clone());
+            while let Some(r) = js.join_next().await {
+                data.append(&mut r.unwrap());
             }
-            data.push(record);
         }
     }
 
     let mut wtr = csv::Writer::from_path("sort-with-errors-data.csv").unwrap();
-    wtr.write_record(&[
-        "size",
-        "std",
-        "local",
-        "fail prob 0",
-        "fail prob 0.01",
-        "fail prob 0.1",
-    ])
-    .unwrap();
+    wtr.write_record(&["t", "size", "exp_id", "dur"]).unwrap();
 
-    for record in &data {
-        wtr.write_record(record).unwrap();
+    for (now, size, exp_id, dur) in &data {
+        wtr.write_record(&[now, size, exp_id, dur]).unwrap();
     }
 
     println!("DONE");

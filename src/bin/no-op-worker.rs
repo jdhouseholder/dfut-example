@@ -20,12 +20,10 @@ async fn main() {
 
     let args = Args::parse();
 
-    NoOpWorker::serve(WorkerServerConfig {
+    NoOpWorker::serve_forever(WorkerServerConfig {
         local_server_address: args.local_server_address.to_string(),
         global_scheduler_address: args.global_scheduler_address.to_string(),
         ..Default::default()
     })
-    .await
-    .wait()
     .await;
 }

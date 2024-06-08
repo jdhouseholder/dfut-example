@@ -24,3 +24,9 @@ impl NoOpWorker {
         Ok(vec![42u8; a as usize])
     }
 }
+
+pub fn now() -> std::time::Duration {
+    std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap()
+}

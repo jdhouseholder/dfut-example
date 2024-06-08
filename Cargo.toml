@@ -12,6 +12,7 @@ metrics-exporter-prometheus = "0.14.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 pyo3 = { version = "0.21.2", features = ["auto-initialize"] }
 csv = "1.3.0"
+tokio-util = "0.7.11"
 
 dfut = { path = "../dfut/dfut" }
 dfut-macro = { path = "../dfut/dfut-macro" }

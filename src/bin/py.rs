@@ -66,7 +66,7 @@ async fn main() {
     }));
 
     (1..=9).for_each(|i| {
-        tokio::spawn(Worker::serve(WorkerServerConfig {
+        tokio::spawn(Worker::serve_forever(WorkerServerConfig {
             local_server_address: format!("http://127.0.0.1:812{i}"),
             global_scheduler_address: global_scheduler_address.to_string(),
             ..Default::default()
