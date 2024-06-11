@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 
-use clap::Parser;
 use dfut::{
     d_await, into_dfut, DFut, DResult, GlobalScheduler, GlobalSchedulerCfg, Runtime,
     WorkerServerConfig,
@@ -15,12 +14,6 @@ const BASE: u64 = 200_000;
 const N: u32 = 6;
 
 const P_FAIL: &[f64] = &[0., 0.01, 0.1];
-
-#[derive(Parser, Debug)]
-struct Args {
-    #[arg(short, long, default_value_t = 100)]
-    n: u32,
-}
 
 pub fn partition(mut v: Vec<u64>) -> (Vec<u64>, u64, Vec<u64>) {
     let p = v.pop().unwrap();
@@ -119,7 +112,7 @@ async fn main() {
         let size = BASE * 2u64.pow(i);
 
         let exp_start = Instant::now();
-        let datas: Vec<Vec<_>> = (0..n_cpus)
+        let datum: Vec<Vec<_>> = (0..n_cpus)
             .collect::<Vec<_>>()
             .into_par_iter()
             .map(|_| {
@@ -146,12 +139,12 @@ async fn main() {
                 data
             })
             .collect();
-        for d in datas {
+        for d in datum {
             data.extend(d);
         }
 
         let exp_start = Instant::now();
-        let datas: Vec<Vec<_>> = (0..n_cpus)
+        let datum: Vec<Vec<_>> = (0..n_cpus)
             .collect::<Vec<_>>()
             .into_par_iter()
             .map(|_| {
@@ -178,7 +171,7 @@ async fn main() {
                 data
             })
             .collect();
-        for d in datas {
+        for d in datum {
             data.extend(d);
         }
 
